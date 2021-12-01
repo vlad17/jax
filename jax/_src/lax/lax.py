@@ -2224,7 +2224,12 @@ def _convert_element_type_lower(ctx, avals_in, avals_out, operand, *,
   if (dtypes.issubdtype(aval_in.dtype, np.complexfloating) and
       not dtypes.issubdtype(new_dtype, np.complexfloating)):
     operand = mhlo.RealOp(operand).result
-  return mhlo.ConvertOp(mlir.aval_to_ir_type(aval_out), operand).results
+  if jax._src.lib._xla_extension_version < 47:
+    return mhlo.ConvertOp(mlir.aval_to_ir_type(aval_out), operand).results
+  else:
+    return mhlo.ConvertOp(
+        mlir.aval_to_ir_type(aval_out), operand,
+        ir.StringAttr.get("ROUND_DEFAULT")).results
 
 mlir.register_lowering(convert_element_type_p, _convert_element_type_lower)
 

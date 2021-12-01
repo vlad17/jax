@@ -61,6 +61,7 @@ from jax._src.lib import xla_client as xc
 from jax._src.lib import pmap_lib
 from jax._src.lib.mlir import ir
 from jax._src.lib.mlir.dialects import mhlo
+from jax._src.lib import _xla_extension_version as xla_version
 from jax.tree_util import tree_flatten, tree_map
 from jax.interpreters import batching
 from jax.interpreters import mlir
@@ -1654,7 +1655,12 @@ def _mhlo_unshard(aval, axis_env, out_axis, xs, platform):
                     and platform in ('cpu', 'gpu'))
     if convert_bool:
       aval = aval.update(dtype=np.dtype(np.float32))
-      x = mhlo.ConvertOp(mlir.aval_to_ir_type(aval), x).result
+      if xla_version < 47:
+        x = mhlo.ConvertOp(mlir.aval_to_ir_type(aval), x).result
+      else:
+        x = mhlo.ConvertOp(
+            mlir.aval_to_ir_type(aval), x,
+            ir.StringAttr.get("ROUND_DEFAULT")).result
 
     dims = list(aval.shape)
     padded_aval = aval.update(shape=[axis_env.sizes[-1]] + dims)

@@ -315,7 +315,7 @@ def shard_args(devices: Sequence[xb.xla_client.Device],
     A list of length matching args, containing lists of per-device buffers
     for each argument.
   """
-  return [_shard_arg(arg, devices, indices[a]) for a, arg in enumerate(args)]
+  return [_shard_arg(arg, devices, indices[i]) for i, arg in enumerate(args)]
 
 
 shard_arg_handlers: Dict[Any, Callable[[Any, Any, Any], Sequence[Any]]] = {}
@@ -2047,9 +2047,8 @@ class MeshComputation:
 def _get_input_metadata(global_in_avals, global_mesh, in_axes, in_is_gda):
   input_specs, input_indices, input_avals = [], [], []
   for gaval, axis, is_gda in safe_zip(global_in_avals, in_axes, in_is_gda):
-    # TODO(yashkatariya): Don't calculate input_indices and input_specs for GDA
-    # as GDA doesn't need it.
-    if is_gda:
+    # If input is GDA or fully replicated.
+    if is_gda or not axis:
       aval = gaval
       mesh = global_mesh
     else:
@@ -2121,7 +2120,10 @@ class MeshExecutable:
       with dispatch.log_elapsed_time(f"Finished XLA compilation of {name} "
                                      "in {elapsed_time} sec"):
         compiled = dispatch.compile_or_get_cached(backend, computation, compile_options)
-      handle_args = InputsHandler(compiled.local_devices(), input_specs, input_indices)
+      local_devices = compiled.local_devices()
+      local_input_indices = [indices[:len(local_devices)]
+                             for aval, indices in safe_zip(input_avals, input_indices)]
+      handle_args = InputsHandler(local_devices, input_specs, local_input_indices)
       unsafe_call = partial(execute_replicated, compiled, backend, handle_args, handle_outs)
       xla_executable = compiled
 
